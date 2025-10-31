@@ -466,13 +466,7 @@ async def websocket_execute(
                     mem_limit="256m", 
                     cpu_shares=512,
                     volumes=volumes_to_mount,
-                    working_dir=working_dir_path,
-                    
-                    # ATUALIZADO: Usa a variável do host
-                    volumes=volumes_to_mount,
-                    
-                    # ATUALIZADO: Só define working_dir se o volume foi montado
-                    working_dir=working_dir_path
+                    working_dir=working_dir_path                   
                 )
 
                 # 2. AGUARDA o contêiner terminar (com timeout)

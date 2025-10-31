@@ -2,6 +2,7 @@ services:
   # 1. Serviço de Frontend (React + NGINX)
   frontend:
     build: ./frontend
+    dockerfile: Dockerfile.prod
     container_name: pegasus-frontend
     restart: unless-stopped
     networks:

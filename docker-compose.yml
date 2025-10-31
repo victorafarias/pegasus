@@ -8,36 +8,45 @@ services:
       - ./.env      # Diz ao contêiner para carregar as variáveis do .env
     environment:
       # ${PWD} é uma variável especial do compose que pega o caminho atual
-      - - HOST_WORKSPACE_PATH=${PWD}/Arquivos
-    ports:
-      - "8000:8000" # Mapeia a porta 8000 do contêiner para a porta 8000 do seu PC
+      HOST_WORKSPACE_PATH: ${PWD}/Arquivos
+
     volumes:
       - ./backend:/app # "Espelha" a pasta ./backend do seu PC para /app dentro do contêiner
       - ./Arquivos:/app/Arquivos
       - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - root_default # Conecta à rede do Traefik
+    labels:
+      - "traefik.enable=true"
+      # Roteia 'localhost/api/...' para o backend
+      - "traefik.http.routers.meu-colab-backend-local.rule=Host(`localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.meu-colab-backend-local.entrypoints=web"
+      # Remove o /api antes de enviar para o FastAPI (que espera /v1/...)
+      - "traefik.http.middlewares.meu-colab-strip-local.stripprefix.prefixes=/api"
+      - "traefik.http.routers.meu-colab-backend-local.middlewares=meu-colab-strip-local"
+      # Aponta para a porta 8000 do backend
+      - "traefik.http.services.meu-colab-backend-local.loadbalancer.server.port=8000"
+      - "traefik.docker.network=root_default"
 
   # 2. Nosso serviço de Frontend
   frontend:
-    build: ./frontend # Onde encontrar o Dockerfile? Na pasta ./frontend
+    build: ./frontend
     container_name: meu_colab_frontend
-    ports:
-      - "5173:5173" # Mapeia a porta 5173 do contêiner para a 5173 do seu PC
     volumes:
-      - ./frontend:/app # "Espelha" a pasta do frontend
-      - /app/node_modules # Macete: Não espelhe a node_modules, use a que foi instalada DENTRO do contêiner
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
-      - backend     # Diz ao Docker para esperar o backend iniciar antes de iniciar o frontend
-
-# ATUALIZADO: Adicionamos esta seção para que o frontend 
-# (localhost:5173) possa falar com o backend (localhost:8000)
-# mesmo com o 'root_path="/api"'
+      - backend
+    networks:
+      - root_default # Conecta à rede do Traefik
+    # Labels do Traefik para o FRONTEND
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.meu-colab-backend-local.rule=Host(`localhost`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.meu-colab-backend-local.entrypoints=web"
-      - "traefik.http.middlewares.meu-colab-strip-local.stripprefix.prefixes=/api"
-      - "traefik.http.routers.meu-colab-backend-local.middlewares=meu-colab-strip-local"
-      - "traefik.http.services.meu-colab-backend-local.loadbalancer.server.port=8000"
+      # Roteia todo o resto ('localhost/') para o frontend
+      - "traefik.http.routers.meu-colab-frontend-local.rule=Host(`localhost`)"
+      - "traefik.http.routers.meu-colab-frontend-local.entrypoints=web"
+      # Aponta para a porta 5173 do frontend (o servidor 'npm run dev')
+      - "traefik.http.services.meu-colab-frontend-local.loadbalancer.server.port=5173"
       - "traefik.docker.network=root_default"
 
 networks:

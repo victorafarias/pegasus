@@ -9,6 +9,7 @@ env/
 node_modules/
 dist/
 .vite/
+package-lock.json
 
 # --- Segredos ---
 # NUNCA envie seus segredos para o GitHub!
