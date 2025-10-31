@@ -43,19 +43,28 @@ HOST_WORKSPACE = os.getenv("HOST_WORKSPACE_PATH")
 if not HOST_WORKSPACE:
     print("ALERTA: HOST_WORKSPACE_PATH não está definido. Montagem de dados pode falhar.")
 
-APP_TITLE = os.getenv("APP_TITLE", "Meu Colab (Padrão)")
+APP_TITLE = os.getenv("APP_TITLE", "Pegasus")
+ENV_MODE = os.getenv("ENV_MODE", "production")
 
-app = FastAPI(
-    title=APP_TITLE,
-    root_path="/api" 
-)
+# ATUALIZADO: Configuração condicional
+app_config = {"title": APP_TITLE}
+if ENV_MODE == "production":
+    # Só usa o root_path em produção (VPS com Traefik)
+    app_config["root_path"] = "/api"
+
+app = FastAPI(**app_config)
+
+# CORS condicional
+origins = [
+    "https://pegasus.ovictorfarias.com.br" # Produção
+]
+if ENV_MODE == "development":
+    # Adiciona o localhost SÓ em desenvolvimento
+    origins.append("http://localhost:5173")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173", # Desenvolvimento
-        "https://pegasus.ovictorfarias.com.br" # Produção
-    ], 
+    allow_origins=origins, 
     allow_credentials=True,
     allow_methods=["*"], 
     allow_headers=["*"], 
@@ -472,20 +481,29 @@ async def websocket_execute(
                 # 2. AGUARDA o contêiner terminar (com timeout)
                 result = container.wait(timeout=10) # Timeout de 10 segundos
                 
+                # Pega o "Código de Saída" (Exit Code)
+                exit_code = result.get("StatusCode", 0)
+
                 # 3. COLETA os logs (saída)
                 stdout = container.logs(stdout=True, stderr=False).decode('utf-8').strip()
                 stderr = container.logs(stdout=False, stderr=True).decode('utf-8').strip()
                 
                 # 4. PREPARA a saída
+                # Combina as duas saídas (stderr pode ter avisos importantes)
+                full_output = ""
+                if stdout:
+                    full_output += stdout
                 if stderr:
-                    output_content = stderr
-                    if stdout:
-                        # Adiciona stdout se houver um erro,
-                        # pois o 'print' pode ter acontecido antes do erro
-                        output_content = f"[Saída antes do erro]:\n{stdout}\n\n[Erro]:\n{stderr}"
-                    output = {"type": "stderr", "content": output_content}
+                    if full_output:
+                        full_output += "\n" # Adiciona uma quebra de linha
+                    full_output += stderr
+                    
+                if exit_code == 0:
+                    # SUCESSO! (mesmo que tenha stderr)
+                    output = {"type": "stdout", "content": full_output}
                 else:
-                    output = {"type": "stdout", "content": stdout}
+                    # FALHA! (Código de saída foi 1 ou maior)
+                    output = {"type": "stderr", "content": full_output}
 
             except docker.errors.ContainerError as e:
                 # Erro dentro do código Python (ex: ZeroDivisionError)

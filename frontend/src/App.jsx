@@ -5,9 +5,10 @@ import './App.css'
 import Notebook from './components/Notebook'
 import Login from './components/Login'
 
-const API_URL = '/api/v1';
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const WS_URL = `${wsProtocol}//${window.location.host}/api/v1/execute`;
+const WS_URL = import.meta.env.VITE_WS_BASE_URL || 
+  `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/execute`;
 
 // ATUALIZADO: Definições de células padrão
 const EMPTY_MARKDOWN_CELL = {

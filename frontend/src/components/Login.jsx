@@ -3,7 +3,7 @@ import axios from 'axios';
 import './Login.css'; // Vamos criar este arquivo
 
 // URL da nossa API de token
-const LOGIN_URL = '/api/v1/auth/token';
+const LOGIN_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1') + '/auth/token';
 
 /**
  * Componente da Tela de Login.
