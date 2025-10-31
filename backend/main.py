@@ -428,11 +428,7 @@ async def websocket_execute(
 
             output = {}
             container = None
-            
-            # ATUALIZADO: Define os volumes a serem montados
-            volumes_to_mount = {}
-            working_dir_path = "/" # Padrão
-            
+                                 
             if HOST_WORKSPACE:
                 # O Docker no Windows pode ter problemas com caminhos C:\
                 # Vamos normalizar isso para o padrão do Docker
