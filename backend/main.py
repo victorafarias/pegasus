@@ -442,16 +442,31 @@ async def websocket_execute(
                     host_path_str = "/" + host_path_str[0].lower() + host_path_str[2:]
 
                 volumes_to_mount[host_path_str] = { 'bind': '/data', 'mode': 'rw' }
-                working_dir_path = "/data/Uploads"    
+                working_dir_path = "/data/Uploads"  
             
+            # --- ATUALIZADO: Lógica de Comando (Python vs. Shell) ---
+            command_to_run = []
+            code_to_run = code.strip() # Limpa espaços em branco
+            
+            if code_to_run.startswith("!"):
+                # É um comando Shell
+                # Remove o '!' e executa com o shell '/bin/sh'
+                shell_command = code_to_run[1:].strip()
+                command_to_run = ["/bin/sh", "-c", shell_command]
+            else:
+                # É um comando Python (comportamento padrão)
+                command_to_run = ["python", "-c", code_to_run]
+
             try:
                 # 1. CRIA E INICIA o contêiner sandbox
                 container = docker_client.containers.run(
-                    image="python:3.11-slim", 
-                    command=["python", "-c", code],
+                    image="python:3.11-slim",
+                    command=command_to_run,
                     detach=True, 
                     mem_limit="256m", 
-                    cpu_shares=512, 
+                    cpu_shares=512,
+                    volumes=volumes_to_mount,
+                    working_dir=working_dir_path
                     
                     # ATUALIZADO: Usa a variável do host
                     volumes=volumes_to_mount,
