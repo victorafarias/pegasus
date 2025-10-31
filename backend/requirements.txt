@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+aiofiles
+websockets
+docker
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]

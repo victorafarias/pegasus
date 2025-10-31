@@ -1,0 +1,22 @@
+# --- Python/FastAPI ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# --- Node.js/React ---
+node_modules/
+dist/
+.vite/
+
+# --- Segredos ---
+# NUNCA envie seus segredos para o GitHub!
+.env
+
+# --- Arquivos do S.O. ---
+.DS_Store
+Thumbs.db
+
+# --- Arquivos do VS Code ---
+.vscode/

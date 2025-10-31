@@ -1,0 +1,77 @@
+.LoginContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--color-bg);
+}
+
+.LoginForm {
+  background-color: var(--color-card);
+  padding: 2rem 3rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  width: 300px;
+  text-align: center;
+}
+
+.LoginForm h1 {
+  color: var(--color-primary);
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.LoginForm h2 {
+  color: var(--color-text);
+  font-weight: 300;
+  margin-bottom: 2rem;
+}
+
+.InputGroup {
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.InputGroup label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--color-text);
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.InputGroup input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg);
+  border-radius: 6px;
+  color: var(--color-text);
+  font-size: 1rem;
+  box-sizing: border-box; /* Garante que o padding não estoure */
+}
+
+.LoginButton {
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background-color: var(--color-primary);
+  color: var(--color-bg);
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.LoginButton:hover {
+  opacity: 0.8;
+}
+
+.LoginError {
+  color: var(--color-error);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}

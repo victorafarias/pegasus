@@ -1,0 +1,668 @@
+/* Reset básico */
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Nossa paleta de cores azul */
+  --color-bg: #0f172a;       /* Azul bem escuro (fundo) */
+  --color-card: #1e293b;     /* Azul escuro (cartão) */
+  --color-sidebar: #131c31;  /* ATUALIZADO: Fundo da barra lateral */
+  --color-text: #e2e8f0;     /* Cinza claro (texto) */
+  --color-primary: #38bdf8;  /* Azul claro (destaque) */
+  --color-border: #334155;    /* ATUALIZADO: Cor da borda */
+  --color-error: #f43f5e;     /* ATUALIZADO: Vermelho para erros */
+}
+
+/* ATUALIZADO: Remove margens e preenche a tela inteira */
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* ATUALIZADO: Layout principal da aplicação */
+.App {
+  display: flex;
+  height: 100vh; /* Ocupa 100% da altura da tela */
+  width: 100vw;  /* Ocupa 100% da largura da tela */
+}
+
+/* --- Barra Lateral (Sidebar) --- */
+.Sidebar {
+  width: 250px;
+  background-color: var(--color-sidebar);
+  border-right: 1px solid var(--color-border);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.Sidebar h2 {
+  margin-top: 0;
+  color: var(--color-primary);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.5rem;
+}
+
+.Sidebar-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  flex-grow: 1; /* Ocupa o espaço disponível */
+  overflow-y: auto; /* Adiciona scroll se a lista for grande */
+}
+
+.Sidebar-item {
+  padding: 0.75rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.Sidebar-item:hover {
+  background-color: var(--color-card);
+}
+
+.Sidebar-item.active {
+  background-color: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.Sidebar-button {
+  background-color: var(--color-primary);
+  color: var(--color-bg);
+  border: none;
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.Sidebar-button:hover {
+  opacity: 0.8;
+}
+
+/* --- Área de Conteúdo Principal --- */
+.MainContent {
+  flex-grow: 1; /* Ocupa todo o resto do espaço */
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+}
+
+.EditorHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 1rem;
+}
+
+.EditorHeader h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.EditorButton {
+  background-color: #22c55e; /* Verde para Salvar */
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.EditorButton:hover {
+  opacity: 0.8;
+}
+
+.EditorStatus {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  opacity: 0.7;
+  margin-right: 20px;
+}
+
+.EditorStatus.error {
+  color: var(--color-error);
+  opacity: 1;
+}
+
+/* ATUALIZADO: Nosso "Editor" falso */
+.EditorArea {
+  width: 100%;
+  height: 100%; /* Ocupa todo o espaço restante */
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-family: 'Fira Code', 'Courier New', monospace; /* Fonte monoespaçada */
+  font-size: 14px;
+  padding: 1rem;
+  box-sizing: border-box; /* Garante que o padding não estoure o layout */
+  resize: none; /* Desabilita o redimensionamento manual */
+}
+
+/* Contêiner do Notebook */
+.NotebookContainer {
+  flex-grow: 1; /* Ocupa o espaço restante */
+  overflow-y: auto; /* Adiciona scroll SÓ nesta área */
+  background-color: #0b1120; /* Fundo um pouco diferente para o notebook */
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  padding: 1rem;
+}
+
+.NotebookPlaceholder {
+  color: var(--color-text);
+  opacity: 0.5;
+  text-align: center;
+  margin-top: 4rem;
+  font-style: italic;
+}
+
+/* Estilo de Célula de Markdown */
+.MarkdownCell {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem 2rem;
+  margin-bottom: 1rem;
+  color: var(--color-text);
+}
+
+/* Estilos de formatação do Markdown */
+.MarkdownCell h1 {
+  font-size: 2em;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.3em;
+  margin-top: 0.5em;
+  margin-bottom: 1rem;
+  color: var(--color-primary);
+}
+
+.MarkdownCell h2 {
+  font-size: 1.5em;
+  margin-top: 1.5em;
+  margin-bottom: 1rem;
+}
+
+.MarkdownCell code {
+  background-color: var(--color-bg);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-family: 'Fira Code', 'Courier New', monospace;
+}
+
+.MarkdownCell pre {
+  background-color: var(--color-bg);
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+/* Estilo de Célula de Código */
+.CodeCell {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  overflow: hidden; /* Para os cantos arredondados do CodeMirror */
+}
+
+/* Customiza o CodeMirror */
+.CodeCell .cm-editor {
+  background-color: #1e1e1e; /* Cor de fundo do tema vscodeDark */
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 14px;
+}
+
+.CodeCell .cm-gutters {
+  background-color: #1e1e1e !important;
+  border-right: none;
+}
+
+/* Wrapper da Célula */
+.CellWrapper {
+  /* Define um "contorno" de borda transparente */
+  border: 2px solid transparent;
+  border-radius: 10px; /* Um pouco maior que o raio da célula */
+  margin: 0.5rem 0;
+  transition: border-color 0.2s ease-in-out;
+}
+
+/* Célula Ativa */
+.CellWrapper.active {
+  /* Destaca a célula ativa com a cor primária */
+  border-color: var(--color-primary);
+}
+
+/* Célula de Markdown (Modo de Visualização) */
+.MarkdownCell.view-mode {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem 2rem;
+  color: var(--color-text);
+  cursor: pointer; /* Indica que é clicável */
+  min-height: 40px; /* Altura mínima */
+}
+
+.MarkdownCell.view-mode:hover {
+  border-color: #55667d; /* Leve destaque no hover */
+}
+
+/* Célula de Markdown (Modo de Edição) */
+.MarkdownCell.edit-mode {
+  border: 1px solid transparent; /* A borda é controlada pelo .CellWrapper */
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Ajusta o botão de salvar quando desabilitado */
+.EditorButton:disabled {
+  background-color: #55667d;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Posição do Botão "Run" */
+.CellWrapper {
+  /* ATUALIZADO: Usa Flexbox para criar as colunas */
+  display: flex;
+  align-items: flex-start; /* Alinha o topo do botão com o topo da célula */
+  
+  position: relative; /* Mantém, para a borda 'active' */
+  border: 2px solid transparent;
+  border-radius: 10px;
+  margin: 0.5rem 0;
+  transition: border-color 0.2s ease-in-out;
+}
+
+/* ATUALIZADO: Nova coluna da esquerda (Gutter) */
+.CellGutter-left {
+  width: 40px; 
+  flex-shrink: 0; 
+  padding-top: 14px; 
+  display: flex;
+  justify-content: center;
+}
+
+.CellGutter-right {
+  width: 123px; /* Largura igual à da esquerda */
+  flex-shrink: 0; 
+  padding-top: 14px; /* Alinhamento vertical */
+  display: flex;
+  justify-content: center;
+}
+
+/* ATUALIZADO: Nova coluna de conteúdo (Célula + Saída) */
+.CellContent {
+  flex-grow: 1; /* Ocupa todo o resto do espaço */
+  min-width: 0; /* Truque do Flexbox para evitar quebra de layout */
+}
+
+.RunButton {
+  width: 28px; 
+  height: 28px;
+  border-radius: 50%; 
+  border: 1px solid var(--color-border);
+  background-color: var(--color-card);
+  color: var(--color-text); 
+  cursor: pointer;
+  
+  display: flex; 
+  align-items: center; /* Centraliza verticalmente */
+  justify-content: center; /* Centraliza horizontalmente */
+  
+  opacity: 1; 
+  transition: all 0.2s ease;
+  flex-shrink: 0; 
+  box-sizing: border-box; 
+  font-size: 12px; 
+  line-height: 1; 
+
+  padding: 0; /* ATUALIZADO: Removemos o padding-left e zeramos */
+}
+
+.RunButton:hover {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-bg); /* Cor do ícone '▶' no hover */
+}
+
+/* Ajustes de Célula (sem mudanças, mas aqui para contexto) */
+.CodeCell {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: 0; 
+  overflow: hidden; 
+}
+.MarkdownCell.edit-mode {
+  margin-bottom: 0;
+}
+
+/* --- Estilos da Área de Saída (sem mudanças) --- */
+
+.CellOutput {
+  background-color: #0f172a; 
+  border: 1px solid var(--color-border);
+  border-top: none; 
+  border-radius: 0 0 8px 8px; 
+  padding: 0.75rem 1rem;
+  margin: 0; 
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 13px;
+  white-space: pre-wrap; 
+  word-wrap: break-word;
+}
+
+.CellOutput.stderr {
+  background-color: #3f3133; 
+  color: #ffc2c2; 
+}
+
+.CellOutput.stdout {
+  color: var(--color-text);
+}
+
+.CellOutput.status {
+  color: var(--color-primary);
+  opacity: 0.8;
+  font-style: italic;
+}
+
+/* Botão de Excluir Notebook (na barra lateral) */
+.Sidebar-item {
+  /* ATUALIZADO: Transforma o item da lista em flexbox */
+  display: flex;
+  justify-content: space-between; /* Alinha o nome à esquerda e o 'X' à direita */
+  align-items: center;
+  
+  padding: 0.75rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.Sidebar-item-name {
+  /* Permite que o nome do arquivo seja cortado se for muito longo */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 8px; /* Espaço entre o nome e o botão 'X' */
+}
+
+.Sidebar-delete-btn {
+  background: none;
+  border: none;
+  color: var(--color-text);
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0.5; /* Fica sutil por padrão */
+  transition: all 0.2s ease;
+}
+
+.Sidebar-item:hover .Sidebar-delete-btn {
+  opacity: 1; /* Aparece no hover */
+}
+
+.Sidebar-delete-btn:hover {
+  background-color: var(--color-error); /* Fundo vermelho no hover */
+  color: #fff;
+}
+
+/* Barra de Adicionar Células */
+.Cell-add-bar {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--color-border);
+  margin-bottom: 1rem;
+}
+
+.Cell-add-btn {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  color: var(--color-primary);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.Cell-add-btn:hover {
+  background-color: var(--color-primary);
+  color: var(--color-bg);
+  border-color: var(--color-primary);
+}
+
+/* Botão de Excluir Célula (na coluna da esquerda) */
+.Cell-delete-btn {
+  width: 28px; 
+  height: 28px;
+  border-radius: 50%; 
+  border: 1px solid var(--color-border);
+  background-color: var(--color-card);
+  color: var(--color-text); 
+  cursor: pointer;
+  
+  display: flex; 
+  align-items: center;
+  justify-content: center;
+  
+  opacity: 1; /* ATUALIZADO: Agora sempre visível */
+
+  transition: all 0.2s ease;
+  flex-shrink: 0; 
+  box-sizing: border-box; 
+  
+  font-size: 16px; 
+  font-weight: bold;
+  line-height: 1; 
+  padding: 0;
+
+  margin-top: 9px;
+  margin-right: 5px;
+}
+
+.Cell-delete-btn:hover {
+  background-color: var(--color-error); /* Fundo vermelho */
+  border-color: var(--color-error);
+  color: #fff; /* Ícone 'X' branco */
+}
+
+/* --- Estilos da Sprint 9 --- */
+
+/* Divisor da Barra Lateral */
+.Sidebar-divider {
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 1rem 0;
+}
+
+/* Título do Workspace */
+.Sidebar h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: var(--color-primary);
+  font-size: 1.1rem;
+}
+
+/* Lista de Arquivos do Workspace */
+.Workspace-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  flex-grow: 1; /* Ocupa o espaço disponível */
+  overflow-y: auto; /* Adiciona scroll se a lista for grande */
+}
+
+.Workspace-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.25rem;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+.Workspace-item-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 8px;
+}
+
+.Workspace-item-size {
+  color: var(--color-text);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+/* Botão de Upload */
+.Sidebar-upload-btn {
+  background-color: var(--color-card);
+  border: 1px dashed var(--color-border);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.Sidebar-upload-btn:hover {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-bg);
+}
+
+/* --- Estilos da Sprint 10 --- */
+
+/* Título do Notebook Clicável */
+.EditorHeader h1 {
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.EditorHeader h1:hover {
+  border-color: var(--color-primary);
+  opacity: 0.8;
+}
+
+/* Botão de Download no Workspace */
+.Workspace-item-actions {
+  display: flex;
+}
+
+.Workspace-download-btn {
+  background: none;
+  border: none;
+  color: var(--color-text);
+  cursor: pointer;
+  opacity: 0.5;
+  font-size: 1.2rem; /* Tamanho do ícone */
+  padding: 2px 4px;
+  margin-left: 8px;
+}
+
+.Workspace-item:hover .Workspace-download-btn {
+  opacity: 1;
+}
+
+.Workspace-download-btn:hover {
+  color: var(--color-primary);
+}
+
+/* --- Estilos da Sprint 11 --- */
+
+/* Botão de Download do Notebook (no Header) */
+.Editor-download-btn {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  opacity: 0.7;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.Editor-download-btn:hover {
+  background-color: var(--color-text);
+  color: var(--color-bg);
+  opacity: 1;
+}
+
+/* Botões de Mover Célula (na Gutter Direita) */
+.Cell-move-btn {
+  width: 28px; 
+  height: 28px;
+  border-radius: 8px; /* Quadrado com cantos arredondados */
+  border: 1px solid var(--color-border);
+  background-color: var(--color-card);
+  color: var(--color-text); 
+  cursor: pointer;
+  display: flex; 
+  align-items: center;
+  justify-content: center;
+  opacity: 1; /* Sempre visível */
+  transition: all 0.2s ease;
+  flex-shrink: 0; 
+  box-sizing: border-box; 
+  font-size: 16px; 
+  line-height: 1; 
+  padding: 0;
+  margin-top: 8px; /* Espaço entre o botão Excluir e este */
+  margin-right: 5px;
+}
+
+.Cell-move-btn:hover {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-bg); 
+}
+
+.Cell-move-btn:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+/* Botão de Excluir no Workspace */
+.Workspace-delete-btn {
+  background: none;
+  border: none;
+  color: var(--color-text);
+  cursor: pointer;
+  opacity: 0.5;
+  font-size: 1.1rem; /* Tamanho do ícone 'X' */
+  font-weight: bold;
+  padding: 2px 4px;
+  margin-left: 4px; /* Espaço do botão de download */
+}
+
+.Workspace-item:hover .Workspace-delete-btn {
+  opacity: 1;
+}
+
+.Workspace-delete-btn:hover {
+  color: var(--color-error);
+}

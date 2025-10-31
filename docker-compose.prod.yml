@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # 1. Serviço de Frontend (React + NGINX)
+  frontend:
+    build: ./frontend
+    container_name: pegasus-frontend
+    restart: unless-stopped
+    networks:
+      - root_default
+    labels:
+      - "traefik.enable=true"
+      # Roteador para o Frontend (React App)
+      # Pega todo o tráfego que NÃO é da API
+      - "traefik.http.routers.pegasus-frontend.rule=Host(`pegasus.ovictorfarias.com.br`) && PathPrefix(`/`)"
+      - "traefik.http.routers.pegasus-frontend.priority=1" # Prioridade baixa
+      - "traefik.http.routers.pegasus-frontend.entrypoints=web,websecure"
+      - "traefik.http.routers.pegasus-frontend.tls.certresolver=mytlschallenge"
+      - "traefik.http.routers.pegasus-frontend.tls=true"
+      - "traefik.http.services.pegasus-frontend.loadbalancer.server.port=80" # NGINX roda na porta 80
+      - "traefik.docker.network=root_default"
+
+  # 2. Serviço de Backend (FastAPI)
+  backend:
+    build: ./backend
+    container_name: pegasus-backend
+    restart: unless-stopped
+    env_file:
+      - .env # Puxa o .env da VPS
+    environment:
+      # Passa o caminho do host (na VPS) para o contêiner
+      - HOST_WORKSPACE_PATH=${PWD}/Arquivos 
+    volumes:
+      # Monta a pasta de dados da VPS para dentro do contêiner
+      - ./Arquivos:/app/Arquivos
+      # Monta o socket do Docker
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - root_default
+    labels:
+      - "traefik.enable=true"
+      # Roteador para o Backend (API)
+      # Pega todo o tráfego que COMEÇA com /api
+      - "traefik.http.routers.pegasus-backend.rule=Host(`pegasus.ovictorfarias.com.br`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.pegasus-backend.priority=2" # Prioridade alta
+      - "traefik.http.routers.pegasus-backend.entrypoints=web,websecure"
+      - "traefik.http.routers.pegasus-backend.tls.certresolver=mytlschallenge"
+      - "traefik.http.routers.pegasus-backend.tls=true"
+      # Middleware para remover o prefixo /api antes de enviar para o FastAPI
+      - "traefik.http.routers.pegasus-backend.middlewares=pegasus-strip-api"
+      - "traefik.http.middlewares.pegasus-strip-api.stripprefix.prefixes=/api"
+      - "traefik.http.services.pegasus-backend.loadbalancer.server.port=8000" # FastAPI roda na porta 8000
+      - "traefik.docker.network=root_default"
+
+networks:
+  root_default:
+    external: true
