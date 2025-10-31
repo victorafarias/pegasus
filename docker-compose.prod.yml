@@ -1,8 +1,9 @@
 services:
   # 1. Serviço de Frontend (React + NGINX)
   frontend:
-    build: ./frontend
-    dockerfile: Dockerfile.prod
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
     container_name: pegasus-frontend
     restart: unless-stopped
     networks:
@@ -28,7 +29,7 @@ services:
       - .env # Puxa o .env da VPS
     environment:
       # Passa o caminho do host (na VPS) para o contêiner
-      - HOST_WORKSPACE_PATH=${PWD}/Arquivos 
+      HOST_WORKSPACE_PATH: ${PWD}/Arquivos 
     volumes:
       # Monta a pasta de dados da VPS para dentro do contêiner
       - ./Arquivos:/app/Arquivos
