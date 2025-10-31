@@ -466,7 +466,7 @@ async def websocket_execute(
                     mem_limit="256m", 
                     cpu_shares=512,
                     volumes=volumes_to_mount,
-                    working_dir=working_dir_path
+                    working_dir=working_dir_path,
                     
                     # ATUALIZADO: Usa a variável do host
                     volumes=volumes_to_mount,
