@@ -5,6 +5,7 @@ import './App.css'
 import Notebook from './components/Notebook'
 import Login from './components/Login'
 
+const API_URL = '/api/v1';
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = `${wsProtocol}//${window.location.host}/api/v1/execute`;
 
