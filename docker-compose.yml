@@ -1,7 +1,3 @@
-# Versão do Docker Compose
-version: '3.8'
-
-# 'services' define os contêineres que queremos rodar
 services:
 
   # 1. Nosso serviço de Backend
