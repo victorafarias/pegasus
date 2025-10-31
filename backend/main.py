@@ -82,6 +82,10 @@ except Exception as e:
     print("O Docker está rodando? O docker.sock está montado?")
     docker_client = None
 
+# Gerenciador de Kernels (Contêineres)
+# Esta é a nossa "memória" de quais usuários estão rodando quais contêineres.
+kernel_sessions: Dict[str, docker.models.containers.Container] = {}
+
 # --- Modelos de Dados (Pydantic) ---
 
 class StatusResponse(BaseModel):
@@ -401,11 +405,13 @@ async def delete_file_from_workspace(filename: str):
 @app.websocket("/v1/execute")
 async def websocket_execute(
     websocket: WebSocket,
-    token: str = Query(...) # Recebe o token pela URL
+    token: str = Query(...) 
 ):
     """
     Endpoint WebSocket para execução de código SEGURA em um contêiner Docker.
     """
+    
+    # 1. Autenticar o Usuário
     try:
         user = await get_current_user_ws(token)
     except HTTPException:
@@ -415,20 +421,64 @@ async def websocket_execute(
     await websocket.accept() 
     
     if not docker_client:
-        await websocket.send_json({
-            "type": "stderr", 
-            "content": "Erro Crítico: O servidor não está conectado ao Docker."
-        })
+        await websocket.send_json({"type": "stderr", "content": "Erro Crítico: O servidor não está conectado ao Docker."})
         await websocket.close()
         return
 
     if not HOST_WORKSPACE: 
-        await websocket.send_json({
-            "type": "stderr", 
-            "content": "Erro Crítico: O servidor não está configurado com HOST_WORKSPACE_PATH."
-        })
+        await websocket.send_json({"type": "stderr", "content": "Erro Crítico: O servidor não está configurado com HOST_WORKSPACE_PATH."})
+        await websocket.close()
+        return
+
+    # --- Lógica de Kernel Persistente ---
+    
+    kernel_id = user.username # Vamos usar o username como ID do kernel
+    container: docker.models.containers.Container = None
 
     try:
+        # 2. Encontrar ou Criar o Kernel
+        if kernel_id in kernel_sessions:
+            # Usuário já tem um kernel, vamos reutilizá-lo
+            container = kernel_sessions[kernel_id]
+            print(f"Reconectando ao kernel para o usuário: {kernel_id}")
+            # Garante que o contêiner ainda está rodando
+            container.reload() 
+            if container.status != "running":
+                raise Exception("O kernel foi parado inesperadamente.")
+            
+        else:
+            # Primeiro login, precisamos criar um novo kernel
+            print(f"Criando novo kernel para o usuário: {kernel_id}...")
+            
+            # Prepara os volumes e working_dir
+            volumes_to_mount = {}
+            working_dir_path = "/"
+            
+            if HOST_WORKSPACE:
+                host_path_str = str(HOST_WORKSPACE).replace("\\", "/")
+                if host_path_str.startswith("C:"):
+                    host_path_str = "/" + host_path_str[0].lower() + host_path_str[2:]
+                volumes_to_mount[host_path_str] = { 'bind': '/data', 'mode': 'rw' }
+                working_dir_path = "/data/Uploads"
+            
+            # Inicia um contêiner que dorme para sempre (sleep infinity)
+            container = docker_client.containers.run(
+                image="python:3.11-slim",
+                command=["sleep", "infinity"], # O contêiner fica VIVO
+                detach=True, 
+                mem_limit="256m", 
+                cpu_shares=512, 
+                volumes=volumes_to_mount,
+                working_dir=working_dir_path,
+                auto_remove=True, # Remove se o Docker for reiniciado
+            )
+            # Salva o kernel na nossa "memória"
+            kernel_sessions[kernel_id] = container
+            print(f"Kernel {container.short_id} criado e rodando.")
+            await websocket.send_json({"type": "stdout", "content": "Kernel conectado e pronto."})
+
+
+        # 3. Loop de Execução (escuta por código)
         while True:
             data = await websocket.receive_json()
             code = data.get("code")
@@ -436,101 +486,72 @@ async def websocket_execute(
                 continue
 
             output = {}
-            container = None
             
-            # ATUALIZADO: Define os volumes a serem montados
-            volumes_to_mount = {}
-            working_dir_path = "/" # Padrão
-            
-            if HOST_WORKSPACE:
-                # O Docker no Windows pode ter problemas com caminhos C:\
-                # Vamos normalizar isso para o padrão do Docker
-                host_path_str = str(HOST_WORKSPACE).replace("\\", "/")
-                # Se estiver no Windows, pode parecer /c/Users/...
-                if host_path_str.startswith("C:"):
-                    host_path_str = "/" + host_path_str[0].lower() + host_path_str[2:]
-
-                volumes_to_mount[host_path_str] = { 'bind': '/data', 'mode': 'rw' }
-                working_dir_path = "/data/Uploads"  
-            
-            # --- ATUALIZADO: Lógica de Comando (Python vs. Shell) ---
+            # Prepara o comando (Shell ou Python)
             command_to_run = []
-            code_to_run = code.strip() # Limpa espaços em branco
-            
+            code_to_run = code.strip()
             if code_to_run.startswith("!"):
-                # É um comando Shell
-                # Remove o '!' e executa com o shell '/bin/sh'
                 shell_command = code_to_run[1:].strip()
                 command_to_run = ["/bin/sh", "-c", shell_command]
             else:
-                # É um comando Python (comportamento padrão)
                 command_to_run = ["python", "-c", code_to_run]
-
+            
             try:
-                # 1. CRIA E INICIA o contêiner sandbox
-                container = docker_client.containers.run(
-                    image="python:3.11-slim",
-                    command=command_to_run,
-                    detach=True, 
-                    mem_limit="256m", 
-                    cpu_shares=512,
-                    volumes=volumes_to_mount,
-                    working_dir=working_dir_path                   
+                # 4. EXECUTAR DENTRO do contêiner persistente (usando exec_run)
+                exec_result = container.exec_run(
+                    cmd=command_to_run,
+                    demux=True # Separa stdout e stderr
                 )
-
-                # 2. AGUARDA o contêiner terminar (com timeout)
-                result = container.wait(timeout=10) # Timeout de 10 segundos
                 
-                # Pega o "Código de Saída" (Exit Code)
-                exit_code = result.get("StatusCode", 0)
+                # 5. Coletar a Saída
+                exit_code = exec_result.exit_code
+                stdout = exec_result.output[0].decode('utf-8').strip() if exec_result.output[0] else ""
+                stderr = exec_result.output[1].decode('utf-8').strip() if exec_result.output[1] else ""
 
-                # 3. COLETA os logs (saída)
-                stdout = container.logs(stdout=True, stderr=False).decode('utf-8').strip()
-                stderr = container.logs(stdout=False, stderr=True).decode('utf-8').strip()
-                
-                # 4. PREPARA a saída
-                # Combina as duas saídas (stderr pode ter avisos importantes)
                 full_output = ""
                 if stdout:
                     full_output += stdout
                 if stderr:
                     if full_output:
-                        full_output += "\n" # Adiciona uma quebra de linha
+                        full_output += "\n"
                     full_output += stderr
                     
                 if exit_code == 0:
-                    # SUCESSO! (mesmo que tenha stderr)
                     output = {"type": "stdout", "content": full_output}
                 else:
-                    # FALHA! (Código de saída foi 1 ou maior)
                     output = {"type": "stderr", "content": full_output}
 
-            except docker.errors.ContainerError as e:
-                # Erro dentro do código Python (ex: ZeroDivisionError)
-                output = {"type": "stderr", "content": e.stderr.decode('utf-8').strip()}
             except Exception as e:
-                output = {"type": "stderr", "content": f"Erro inesperado no orquestrador: {e}"}
-            finally:
-                # 5. GARANTE a limpeza (destrói o contêiner)
-                if container:
-                    try:
-                        container.remove(force=True)
-                    except docker.errors.NotFound:
-                        pass # Contêiner já foi removido
-
-            # 6. Envia o resultado de volta
+                output = {"type": "stderr", "content": f"Erro inesperado no 'exec_run': {e}"}
+            
+            # 6. Envia a saída da célula de volta
             await websocket.send_json(output)
-
-            # ATUALIZADO: Sincronização de Arquivos
-            # Envia uma *segunda* mensagem, avisando o frontend
-            # para atualizar a lista de arquivos do workspace.
+            
+            # 7. Envia o aviso de filesystem_update
             await websocket.send_json({
                 "type": "filesystem_update",
                 "content": "Execução concluída, atualize os arquivos."
             })
 
     except WebSocketDisconnect:
-        print("Cliente WebSocket desconectado")
+        print(f"Cliente WebSocket desconectado: {kernel_id}")
     except Exception as e:
-        print(f"Erro no WebSocket: {e}")
-        await websocket.close(code=1011, reason=f"Erro: {e}")
+        print(f"Erro no WebSocket ou Kernel: {e}")
+        try:
+            await websocket.close(code=1011, reason=f"Erro: {e}")
+        except:
+            pass # A conexão pode já estar morta
+    finally:
+        # 8. Limpeza (Destruir o Kernel)
+        # Quando o usuário desconecta (ou ocorre um erro),
+        # paramos e removemos seu contêiner.
+        if kernel_id in kernel_sessions:
+            container_to_remove = kernel_sessions.pop(kernel_id)
+            try:
+                print(f"Destruindo kernel {container_to_remove.short_id} para {kernel_id}...")
+                container_to_remove.remove(force=True)
+                print(f"Kernel {container_to_remove.short_id} destruído.")
+            except docker.errors.NotFound:
+                print("Kernel já havia sido removido.")
+            except Exception as e:
+                print(f"Erro ao tentar remover o kernel {container_to_remove.short_id}: {e}")
