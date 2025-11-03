@@ -25,7 +25,7 @@ const EMPTY_CODE_CELL = {
 };
 
 const EMPTY_NOTEBOOK_CONTENT = {
-  cells: [ EMPTY_MARKDOWN_CELL ], // Começa com uma célula de markdown
+  cells: [ EMPTY_MARKDOWN_CELL ],
   metadata: {},
   nbformat: 4,
   nbformat_minor: 5
@@ -48,12 +48,13 @@ function App() {
   const [hasError, setHasError] = useState(false)
   const [activeCellIndex, setActiveCellIndex] = useState(null)
   const [isDirty, setIsDirty] = useState(false)
+  const [executingCellIndex, setExecutingCellIndex] = useState(null);
 
   // --- Refs ---
   const autosaveTimer = useRef(null)
   const websocket = useRef(null)
   const fileInputRef = useRef(null)
-
+  
   // --- ATUALIZADO: Lógica de Auth ---
 
   const handleLoginSuccess = (newToken) => {

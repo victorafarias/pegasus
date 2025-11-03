@@ -21,3 +21,15 @@ Thumbs.db
 
 # --- Arquivos do VS Code ---
 .vscode/
+
+# Pasta de Arquivos
+Arquivos/Uploads
+
+# --- Mídia Grande ---
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.mp3
+*.wav

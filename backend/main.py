@@ -1,5 +1,6 @@
 import os
 import json
+import shlex
 from pathlib import Path
 import aiofiles
 from fastapi import ( 
@@ -514,16 +515,15 @@ async def websocket_execute(
                     if stripped_line.startswith("!"):
                         shell_commands.append(stripped_line[1:].strip())
                 
-                full_shell_command = " && ".join(shell_commands)
-                # Adiciona o timeout de 60s ao comando
-                command_to_run = ["/bin/sh", "-c", f"timeout 60 {full_shell_command}"]
+                full_shell_command = " && ".join(shell_commands)                
+                
+                final_command_string = f"export DEBIAN_FRONTEND=noninteractive && {full_shell_command}"
+                command_to_run = ["/bin/sh", "-c", final_command_string]
             
             else:
                 # É uma célula Python.
-                # Usa shlex.quote para escapar aspas e $ no código
-                safe_code = shlex.quote(code_to_run)
-                # Adiciona o timeout de 60s ao comando
-                command_to_run = ["/bin/sh", "-c", f"timeout 60 python -c {safe_code}"]
+                safe_code = shlex.quote(code_to_run)                
+                command_to_run = ["/bin/sh", "-c", f"python -c {safe_code}"]
             
             try:
                 # 4. EXECUTAR DENTRO do contêiner persistente
@@ -538,6 +538,7 @@ async def websocket_execute(
                 stderr = exec_result.output[1].decode('utf-8').strip() if exec_result.output[1] else ""
 
                 full_output = ""
+                
                 if stdout:
                     full_output += stdout
                 if stderr:
@@ -546,9 +547,7 @@ async def websocket_execute(
                     full_output += stderr
                 
                 # Verifica se o timeout foi atingido
-                if exit_code == 124: # Código de saída do 'timeout'
-                    output = {"type": "stderr", "content": "Erro: Execução cancelada (Timeout de 60s atingido)."}
-                elif exit_code == 0:
+                if exit_code == 0:
                     output = {"type": "stdout", "content": full_output}
                 else:
                     output = {"type": "stderr", "content": full_output}
