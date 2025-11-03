@@ -28,7 +28,7 @@ from auth import (
 # Importações para Execução Segura
 import docker # A biblioteca do Docker
 import docker.errors # Para capturar erros
-from docker.types import LogConfig # (Necessário para logs)
+from docker.types import LogConfig, DeviceRequest # (Necessário para logs)
 
 # --- Configuração ---
 
@@ -465,13 +465,18 @@ async def websocket_execute(
             # Inicia um contêiner que dorme para sempre (sleep infinity)
             container = docker_client.containers.run(
                 image="python:3.11-slim",
-                command=["sleep", "infinity"], # O contêiner fica VIVO
+                command=["sleep", "infinity"], 
                 detach=True, 
-                mem_limit="256m", 
-                cpu_shares=512, 
+                mem_limit="6g", # Mantém o limite de RAM (ainda é uma boa ideia)
+                                
                 volumes=volumes_to_mount,
                 working_dir=working_dir_path,
-                auto_remove=True, # Remove se o Docker for reiniciado
+                auto_remove=True,
+
+                # Isso passa a(s) GPU(s) do host para o contêiner
+                device_requests=[
+                    DeviceRequest(count=-1, capabilities=[['gpu']])
+                ]            
             )
             # Salva o kernel na nossa "memória"
             kernel_sessions[kernel_id] = container
