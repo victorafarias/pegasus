@@ -448,13 +448,12 @@ async def websocket_execute(
                 raise Exception("O kernel foi parado inesperadamente.")
             
         else:
-            # Primeiro login, precisamos criar um novo kernel
+            # --- Lógica de Alocação Adaptativa ---
             print(f"Criando novo kernel para o usuário: {kernel_id}...")
             
             # Prepara os volumes e working_dir
             volumes_to_mount = {}
             working_dir_path = "/"
-            
             if HOST_WORKSPACE:
                 host_path_str = str(HOST_WORKSPACE).replace("\\", "/")
                 if host_path_str.startswith("C:"):
@@ -462,27 +461,56 @@ async def websocket_execute(
                 volumes_to_mount[host_path_str] = { 'bind': '/data', 'mode': 'rw' }
                 working_dir_path = "/data/Uploads"
             
-            # Inicia um contêiner que dorme para sempre (sleep infinity)
-            container = docker_client.containers.run(
-                image="python:3.11-slim",
-                command=["sleep", "infinity"], 
-                detach=True, 
-                mem_limit="6g", # Mantém o limite de RAM (ainda é uma boa ideia)
-                                
-                volumes=volumes_to_mount,
-                working_dir=working_dir_path,
-                auto_remove=True,
-
-                # Isso passa a(s) GPU(s) do host para o contêiner
-                device_requests=[
+            # Define a configuração COMUM do kernel
+            common_config = {
+                "image": "python:3.11-slim",
+                "command": ["sleep", "infinity"], 
+                "detach": True, 
+                "mem_limit": "4g", 
+                "volumes": volumes_to_mount,
+                "working_dir": working_dir_path,
+                "auto_remove": True,
+            }
+            
+            # Define a configuração IDEAL (com GPU)
+            gpu_config = {
+                "device_requests": [
                     DeviceRequest(count=-1, capabilities=[['gpu']])
-                ]            
-            )
-            # Salva o kernel na nossa "memória"
-            kernel_sessions[kernel_id] = container
-            print(f"Kernel {container.short_id} criado e rodando.")
-            await websocket.send_json({"type": "stdout", "content": "Kernel conectado e pronto."})
+                ]
+            }
 
+            container = None
+            try:
+                # TENTATIVA 1: Alocar com GPU
+                print(f"Tentando alocar kernel com GPU para {kernel_id}...")
+                container = docker_client.containers.run(
+                    **common_config,
+                    **gpu_config
+                )
+                print(f"Kernel {container.short_id} criado com SUCESSO (com GPU).")
+
+            except docker.errors.InternalServerError as e:
+                # ERRO! Vamos verificar se é o erro de GPU que esperamos.
+                if "could not select device driver" in str(e):
+                    # É o erro da GPU! Vamos tentar de novo sem ela.
+                    print(f"Falha ao alocar GPU (NVIDIA Toolkit ausente?). Erro: {e}")
+                    print(f"Tentando alocar kernel em modo fallback (somente CPU) para {kernel_id}...")
+                    
+                    # TENTATIVA 2: Alocar com CPU Apenas
+                    container = docker_client.containers.run(
+                        **common_config
+                        # (Desta vez, sem a **gpu_config)
+                    )
+                    print(f"Kernel {container.short_id} criado com SUCESSO (somente CPU).")
+                else:
+                    # Foi um 'InternalServerError' diferente.
+                    # Devemos falhar e reportar o erro.
+                    raise e
+            
+            # Salva o kernel (seja CPU ou GPU) na nossa "memória"
+            kernel_sessions[kernel_id] = container
+            await websocket.send_json({"type": "stdout", "content": "Kernel conectado e pronto."})
+            
 
         # 3. Loop de Execução (escuta por código)
         while True:
