@@ -490,17 +490,46 @@ async def websocket_execute(
             # Prepara o comando (Shell ou Python)
             command_to_run = []
             code_to_run = code.strip()
-            if code_to_run.startswith("!"):
-                shell_command = code_to_run[1:].strip()
-                command_to_run = ["/bin/sh", "-c", shell_command]
+
+            cell_type = "python" # Assume Python por padrão
+            for line in code_to_run.splitlines():
+                stripped_line = line.strip()
+                if not stripped_line: # Pula linhas em branco
+                    continue
+                if stripped_line.startswith("#"): # Pula comentários
+                    continue
+                
+                # Esta é a primeira linha de código real
+                if stripped_line.startswith("!"):
+                    cell_type = "shell"
+                
+                # Já descobrimos o tipo, podemos parar de ler
+                break 
+            
+            # Agora, constrói o comando baseado no tipo da célula
+            if cell_type == "shell":
+                shell_commands = []
+                for line in code_to_run.splitlines():
+                    stripped_line = line.strip()
+                    if stripped_line.startswith("!"):
+                        shell_commands.append(stripped_line[1:].strip())
+                
+                full_shell_command = " && ".join(shell_commands)
+                # Adiciona o timeout de 60s ao comando
+                command_to_run = ["/bin/sh", "-c", f"timeout 60 {full_shell_command}"]
+            
             else:
-                command_to_run = ["python", "-c", code_to_run]
+                # É uma célula Python.
+                # Usa shlex.quote para escapar aspas e $ no código
+                safe_code = shlex.quote(code_to_run)
+                # Adiciona o timeout de 60s ao comando
+                command_to_run = ["/bin/sh", "-c", f"timeout 60 python -c {safe_code}"]
             
             try:
-                # 4. EXECUTAR DENTRO do contêiner persistente (usando exec_run)
+                # 4. EXECUTAR DENTRO do contêiner persistente
                 exec_result = container.exec_run(
                     cmd=command_to_run,
-                    demux=True # Separa stdout e stderr
+                    demux=True 
                 )
                 
                 # 5. Coletar a Saída
@@ -515,8 +544,11 @@ async def websocket_execute(
                     if full_output:
                         full_output += "\n"
                     full_output += stderr
-                    
-                if exit_code == 0:
+                
+                # Verifica se o timeout foi atingido
+                if exit_code == 124: # Código de saída do 'timeout'
+                    output = {"type": "stderr", "content": "Erro: Execução cancelada (Timeout de 60s atingido)."}
+                elif exit_code == 0:
                     output = {"type": "stdout", "content": full_output}
                 else:
                     output = {"type": "stderr", "content": full_output}

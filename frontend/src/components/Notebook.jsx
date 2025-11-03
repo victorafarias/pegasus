@@ -14,7 +14,8 @@ import CellOutput from './CellOutput';
 
 function Notebook({ 
   notebook, 
-  activeCellIndex, 
+  activeCellIndex,
+  executingCellIndex,
   onCellChange, 
   onCellFocus, 
   onRunCell,
@@ -31,6 +32,7 @@ function Notebook({
     <div className="Notebook">
       {notebook.cells.map((cell, index) => {
         const isActive = index === activeCellIndex;
+        const isExecuting = (index === executingCellIndex);
         const handleFocus = () => onCellFocus(index);
         const handleChange = (newValue) => onCellChange(index, newValue);
         const handleRun = (e) => {
@@ -59,12 +61,18 @@ function Notebook({
             key={index} 
             className={`CellWrapper ${isActive ? 'active' : ''}`}
           >
-            {/* ATUALIZADO: Coluna 1 (Gutter Esquerda) */}
+            {/* Coluna 1 (Gutter Esquerda) */}
             <div className="CellGutter-left">
-              {cell.cell_type === 'code' && (
-                <button className="RunButton" onClick={handleRun}>
-                  ▶
-                </button>
+            
+              {/* Lógica de renderização (Loader vs Play) */}
+              {isExecuting ? (
+                <div className="CellLoader" title="Executando..."></div>
+              ) : (
+                cell.cell_type === 'code' && (
+                  <button className="RunButton" onClick={handleRun}>
+                    ▶
+                  </button>
+                )
               )}
             </div>
 

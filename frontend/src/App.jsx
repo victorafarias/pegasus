@@ -423,12 +423,18 @@ function App() {
    * Chamado pelo botão "Run"
    */
   const handleRunCell = (index) => {
-    setActiveCellIndex(index); 
+    setActiveCellIndex(index);
+    
+    // Ativa o Loader!
+    setExecutingCellIndex(index); 
 
     if (!content || !websocket.current || websocket.current.readyState !== WebSocket.OPEN) {
       console.error("WebSocket não está aberto ou notebook não carregado.");
       setStatus("Kernel não conectado. Tente recarregar.")
       setHasError(true);
+      
+      // Desliga o loader se a execução falhar
+      setExecutingCellIndex(null); 
       return;
     }
     
@@ -446,6 +452,9 @@ function App() {
       console.error("Erro ao enviar pelo WebSocket:", error);
       setStatus('Erro de conexão WebSocket.');
       setHasError(true);
+
+      // Desliga o loader se o envio falhar
+      setExecutingCellIndex(null);
     }
   }
 
@@ -553,17 +562,27 @@ function App() {
           if (activeCellIndex !== null) {
             setCellOutput(activeCellIndex, data);
           }
+
           setStatus("Execução concluída.");
+          
+          // ATUALIZADO: Desliga o loader ao receber a saída
+          if (data.type !== 'status') { // Não desliga se for só "Executando..."
+             setExecutingCellIndex(null);
+          }
           break;
-
+          
         case 'filesystem_update':
-          // Mensagem de Atualização de Arquivos (Seu Pedido)
           console.log("Atualizando lista de arquivos do workspace...");
-          fetchFiles(); // Re-busca a lista de arquivos
+          fetchFiles();
+          
+          // ATUALIZADO: Desliga o loader ao receber a 2a mensagem
+          setExecutingCellIndex(null); 
           break;
-
+          
         default:
           console.warn("Mensagem WS desconhecida:", data);
+          // ATUALIZADO: Desliga o loader em caso de msg desconhecida
+          setExecutingCellIndex(null);
       }
     }
 
@@ -733,6 +752,7 @@ function App() {
                   <Notebook
                     notebook={content}
                     activeCellIndex={activeCellIndex}
+                    executingCellIndex={executingCellIndex}
                     onCellChange={handleCellChange}
                     onCellFocus={handleCellFocus}
                     onRunCell={handleRunCell}
