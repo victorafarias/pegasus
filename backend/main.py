@@ -489,7 +489,7 @@ async def websocket_execute(
                 )
                 print(f"Kernel {container.short_id} criado com SUCESSO (com GPU).")
 
-            except docker.errors.InternalServerError as e:
+            except docker.errors.APIError as e:
                 # ERRO! Vamos verificar se é o erro de GPU que esperamos.
                 if "could not select device driver" in str(e):
                     # É o erro da GPU! Vamos tentar de novo sem ela.
@@ -499,12 +499,10 @@ async def websocket_execute(
                     # TENTATIVA 2: Alocar com CPU Apenas
                     container = docker_client.containers.run(
                         **common_config
-                        # (Desta vez, sem a **gpu_config)
                     )
                     print(f"Kernel {container.short_id} criado com SUCESSO (somente CPU).")
                 else:
-                    # Foi um 'InternalServerError' diferente.
-                    # Devemos falhar e reportar o erro.
+                    # Foi um erro de API diferente. Devemos falhar.
                     raise e
             
             # Salva o kernel (seja CPU ou GPU) na nossa "memória"
