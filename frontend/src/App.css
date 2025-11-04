@@ -690,3 +690,108 @@ body {
     transform: rotate(360deg);
   }
 }
+
+/* --- Estilos da Sprint 14 (Monitor) --- */
+
+.ResourceMonitor {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  padding-right: 1rem;
+}
+
+.ResourceBar {
+  width: 100px;
+  height: 14px;
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.ResourceBar-fill {
+  height: 100%;
+  background-color: var(--color-primary);
+  opacity: 0.6;
+  transition: width 0.5s ease-out;
+}
+
+.ResourceBar-label {
+  font-size: 0.75rem;
+  color: var(--color-text);
+  opacity: 0.7;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.ResourceBar-label span {
+  font-weight: 600;
+  color: var(--color-text);
+  opacity: 1;
+}
+
+/* Estilo de "Erro" para a barra de CPU quando > 90% */
+.ResourceBar-fill.cpu-high {
+  background-color: var(--color-error);
+  opacity: 0.8;
+}
+
+/* --- Estilos da Sprint 15 (Reiniciar Kernel) --- */
+
+.Editor-restart-btn {
+  background-color: var(--color-error);
+  border: 1px solid #991b1b;
+  color: #fff;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  opacity: 0.8;
+  transition: all 0.2s ease;
+}
+
+.Editor-restart-btn:hover {
+  opacity: 1;
+  background-color: #b91c1c; /* Vermelho mais escuro */
+}
+
+/* --- Estilos da Sprint 15.3 (Botão Parar) --- */
+
+.StopButton {
+  position: fixed; /* Flutuante */
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 1000; /* Acima de tudo */
+  
+  background-color: var(--color-error);
+  color: white;
+  border: 1px solid #ff7890;
+  
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+  
+  /* Escondido por padrão */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px);
+  transition: all 0.2s ease-in-out;
+}
+
+.StopButton.visible {
+  /* Visível quando 'executingCellIndex' não é nulo */
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.StopButton:hover {
+  background-color: #b91c1c; /* Vermelho mais escuro */
+}

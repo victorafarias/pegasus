@@ -33,3 +33,6 @@ Arquivos/Uploads
 *.webm
 *.mp3
 *.wav
+
+# --- Notebooks ---
+*.ipynb

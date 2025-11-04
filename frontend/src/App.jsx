@@ -1,16 +1,17 @@
 import { Routes, Route, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
-import axios from 'axios' // ATUALIZADO: Importa o axios
+import axios from 'axios' // Importa o axios
 import './App.css'
 import Notebook from './components/Notebook'
 import Login from './components/Login'
+import ResourceMonitor from './components/ResourceMonitor'
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = import.meta.env.VITE_WS_BASE_URL || 
   `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/execute`;
 
-// ATUALIZADO: Definições de células padrão
+// Definições de células padrão
 const EMPTY_MARKDOWN_CELL = {
   cell_type: "markdown",
   metadata: {},
@@ -49,13 +50,18 @@ function App() {
   const [activeCellIndex, setActiveCellIndex] = useState(null)
   const [isDirty, setIsDirty] = useState(false)
   const [executingCellIndex, setExecutingCellIndex] = useState(null);
+  const [resourceStats, setResourceStats] = useState(null);
+
+  // ATUALIZADO: Troca 'useRef' por 'useState' para o WebSocket
+  // Isso força o React a re-anexar handlers na reconexão
+  const [socket, setSocket] = useState(null);
 
   // --- Refs ---
   const autosaveTimer = useRef(null)
   const websocket = useRef(null)
   const fileInputRef = useRef(null)
   
-  // --- ATUALIZADO: Lógica de Auth ---
+  // --- Lógica de Auth ---
 
   const handleLoginSuccess = (newToken) => {
     // 1. Salva o token no localStorage e no estado
@@ -113,7 +119,7 @@ function App() {
     }
   }
 
-  // ATUALIZADO: Esta função agora é chamada pelo autosave ou manualmente
+  // Esta função agora é chamada pelo autosave ou manualmente
   const saveNotebook = async () => {
     if (!currentNotebook || !content) return
     
@@ -152,13 +158,13 @@ function App() {
       safeFilename += '.ipynb'
     }
 
-    // ATUALIZADO: Salva o novo notebook imediatamente
+    // Salva o novo notebook imediatamente
     try {
       setStatus('Criando novo notebook...');
       await apiClient.put(`/notebooks/${safeFilename}`, EMPTY_NOTEBOOK_CONTENT);
       setStatus(`'${safeFilename}' criado.`);
       
-      // ATUALIZADO: Atualiza a lista *depois* de salvar
+      // Atualiza a lista *depois* de salvar
       await fetchNotebooks(); 
       
       // Abre o notebook que acabamos de criar
@@ -171,7 +177,7 @@ function App() {
     }
   }
 
-  // ATUALIZADO: Nova função (Recurso #4)
+  // Nova função (Recurso #4)
   const handleDeleteNotebook = async (event, filename) => {
     event.stopPropagation(); 
     
@@ -199,7 +205,7 @@ function App() {
     }
   }
 
-  // ATUALIZADO: Nova função para Renomear
+  // Nova função para Renomear
   const handleRenameNotebook = async () => {
     if (!currentNotebook) return;
 
@@ -225,7 +231,7 @@ function App() {
 
       setStatus('Renomeado com sucesso.');
 
-      // ATUALIZADO: Atualiza a UI imediatamente
+      // Atualiza a UI imediatamente
       await fetchNotebooks(); // Atualiza a lista da barra lateral
       setCurrentNotebook(safeNewFilename); // Atualiza o título
 
@@ -293,7 +299,7 @@ function App() {
     fileInputRef.current.click();
   };
 
-  // ATUALIZADO: Nova função para Download
+  // Nova função para Download
   const handleDownloadFile = (filename) => {
     // Esta é uma maneira simples de acionar um download no navegador
     // sem usar 'axios', que não lida bem com downloads de 'blob'.
@@ -308,7 +314,7 @@ function App() {
     document.body.removeChild(link);
   }
 
-  // ATUALIZADO: Nova função (Recurso #1)
+  // Nova função (Recurso #1)
   const handleDeleteFile = async (filename) => {
     if (!confirm(`Tem certeza que deseja excluir '${filename}' do workspace?`)) {
       return;
@@ -328,11 +334,26 @@ function App() {
 
   // --- Handlers de Célula ---
 
+  // Função para limpar todos os logs
+  const clearAllOutputs = () => {
+    if (!content) return;
+    setContent(prevContent => {
+      // Mapeia as células e limpa o array 'outputs'
+      const newCells = prevContent.cells.map(cell => {
+        if (cell.cell_type === 'code') {
+          return { ...cell, outputs: [] }; // Reseta a saída
+        }
+        return cell; // Células de Markdown não mudam
+      });
+      return { ...prevContent, cells: newCells };
+    });
+  }
+
   const handleCellFocus = (index) => {
     setActiveCellIndex(index);
   }
 
-  /** ATUALIZADO: Chamado quando o usuário digita em uma célula */
+  /** Chamado quando o usuário digita em uma célula */
   const handleCellChange = (index, newSourceString) => {
     if (!content) return;
     
@@ -354,7 +375,7 @@ function App() {
     });
   }
 
-  // ATUALIZADO: Nova função (Recurso #2)
+  // Nova função (Recurso #2)
   const handleDeleteCell = (index) => {
     if (!content) return;
 
@@ -404,15 +425,38 @@ function App() {
     setIsDirty(true); // Marca para o autosave
   }
   
-  /**
-   * Modifica o estado 'content' para atualizar a saída de uma célula
-   */
-  const setCellOutput = (cellIndex, output) => {
+  // Modificado para lidar com 'streaming'
+  const setCellOutput = (cellIndex, output, isStream = false) => {
     setContent(prevContent => {
       if (!prevContent) return null; 
+      
       const newCells = prevContent.cells.map((cell, i) => {
         if (i === cellIndex) {
-          return { ...cell, outputs: [output] }; 
+          if (!isStream) {
+            // NÃO é stream: Substitui a saída (ex: "Executando...")
+            return { ...cell, outputs: [output] }; 
+          }
+
+          // É stream: Lógica de anexar
+          const oldOutput = cell.outputs && cell.outputs[0] 
+                          ? cell.outputs[0] 
+                          : { type: 'stdout', content: '' };
+          
+          let newContent = '';
+          
+          // Se a saída anterior era "Executando...", jogue-a fora.
+          if (oldOutput.type === 'status') {
+            newContent = output.content; // Substitui "Executando..."
+          } else {
+            // Senão, anexe o novo pedaço de log.
+            newContent = oldOutput.content + output.content;
+          }
+
+          // O tipo da nova saída é 'stdout' (se era 'status') ou o tipo antigo
+          // (Se o stream for um erro, ele será anexado e o tipo final será 'stderr')
+          const newType = (oldOutput.type === 'status' ? 'stdout' : oldOutput.type);
+          
+          return { ...cell, outputs: [{ type: newType, content: newContent }] };
         }
         return cell;
       });
@@ -429,37 +473,33 @@ function App() {
     // Ativa o Loader!
     setExecutingCellIndex(index); 
 
-    if (!content || !websocket.current || websocket.current.readyState !== WebSocket.OPEN) {
+    if (!content || !socket || socket.readyState !== WebSocket.OPEN) {
       console.error("WebSocket não está aberto ou notebook não carregado.");
       setStatus("Kernel não conectado. Tente recarregar.")
       setHasError(true);
-      
-      // Desliga o loader se a execução falhar
       setExecutingCellIndex(null); 
       return;
     }
     
     const cell = content.cells[index];
+    
     if (cell.cell_type !== 'code') return; 
-
     const code = cell.source.join('\n');
-    setCellOutput(index, { type: "status", content: "Executando..." });
-
+    setCellOutput(index, { type: "status", content: "Executando..." }, false); 
+    
     try {
-      websocket.current.send(JSON.stringify({ code: code }));
+      socket.send(JSON.stringify({ action: "execute", code: code }));
       setStatus('Executando código...');
       setHasError(false);
     } catch (error) {
       console.error("Erro ao enviar pelo WebSocket:", error);
       setStatus('Erro de conexão WebSocket.');
       setHasError(true);
-
-      // Desliga o loader se o envio falhar
-      setExecutingCellIndex(null);
+      setExecutingCellIndex(null); 
     }
   }
 
-  // ATUALIZADO: Nova função (Recurso #2)
+  // Nova função (Recurso #2)
   const handleAddCell = (type) => {
     if (!content) return;
 
@@ -479,23 +519,161 @@ function App() {
     setIsDirty(true);
   }
 
-  // --- Efeito de Inicialização ---
+  // Função "Parar"
+  const handleStopExecution = () => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setStatus("Não conectado.");
+      return;
+    }
+    console.log("Enviando comando 'stop_execution'...");
+    try {
+      socket.send(JSON.stringify({ 
+        action: "stop_execution"
+      }));
+    } catch (error) {
+      console.error("Erro ao enviar 'stop_execution':", error);
+    }
+  }
+
+  // Função Reiniciar Kernel
+  const handleRestartKernel = () => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setStatus("Não conectado.");
+      return;
+    }
+    if (confirm("Tem certeza que deseja reiniciar o kernel?\nTodo o estado (variáveis, instalações) será perdido.")) {
+      try {
+        socket.send(JSON.stringify({ 
+          action: "restart_kernel"
+        }));
+      } catch (error) {
+        console.error("Erro ao enviar reinício:", error);
+      }
+    }
+  }
+
+  // --- Efeito de Inicialização (Hooks) ---
   useEffect(() => {
     if (token) {
-      // O usuário tem um token. Configura o cliente 'apiClient'
-      // para enviar este token em *todos* os cabeçalhos.
+      // 1. Configura a API HTTP
       apiClient = axios.create({
         baseURL: API_URL,
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      // Inicia as conexões
+      
+      // 2. Reseta os stats
+      setResourceStats(null); 
+      
+      // 3. Busca os dados iniciais
       fetchNotebooks();
       fetchFiles();
-      connectWebSocket();
       
+      // 4. Cria a conexão WebSocket
+      if (socket) {
+         socket.close(); // Fecha qualquer socket antigo
+      }
+      
+      const newWsUrl = `${WS_URL}?token=${encodeURIComponent(token)}`;
+      console.log("Tentando conectar ao WebSocket...");
+      const newSocket = new WebSocket(newWsUrl);
+      
+      newSocket.onopen = () => {
+        console.log("WebSocket conectado!");
+        setStatus("Conectado ao Kernel.");
+        setHasError(false);
+      };
+
+      newSocket.onerror = (error) => {
+        console.error("Erro no WebSocket:", error);
+        setStatus("Erro de conexão com o Kernel.");
+        setHasError(true);
+      };
+
+      newSocket.onclose = (event) => {
+        console.log("WebSocket desconectado.", event.code);
+        
+        setExecutingCellIndex(null); 
+        setResourceStats(null);      
+
+        if (event.code === 1008) { 
+          setStatus("Sessão expirada. Faça login novamente.");
+          handleLogout();
+        } else if (event.reason === "Kernel restarting") {
+          setStatus("Kernel reiniciado. Reconectando...");
+          clearAllOutputs();           
+          setTimeout(() => setToken(t => t + ' '), 1000); // Truque para forçar a reconexão
+        } else {
+          setStatus("Desconectado do Kernel.");
+          setHasError(true);
+        }
+      };
+
+      // 5. ATUALIZADO: Define o handler de MENSAGENS aqui
+      newSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        switch(data.type) {
+          case 'stream':
+            // Usa 'activeCellIndex' de um 'ref' para evitar 'stale state'
+            setActiveCellIndex(currentActiveCell => {
+              if (currentActiveCell !== null) {
+                setCellOutput(currentActiveCell, data, true); // true = Stream/Anexar
+              }
+              return currentActiveCell;
+            });
+            break;
+            
+          case 'stdout':
+          case 'stderr':
+            // Mensagem FINAL
+            setActiveCellIndex(currentActiveCell => {
+              if (currentActiveCell !== null) {
+                setContent(prevContent => {
+                  if (!prevContent) return prevContent;
+                  const newCells = prevContent.cells.map((cell, i) => {
+                    if (i === currentActiveCell) {
+                      const oldOutput = cell.outputs && cell.outputs[0] ? cell.outputs[0] : { type: 'stdout', content: '' };
+                      return {
+                        ...cell,
+                        outputs: [{
+                          type: data.type, 
+                          content: oldOutput.content + data.content
+                        }]
+                      };
+                    }
+                    return cell;
+                  });
+                  return { ...prevContent, cells: newCells };
+                });
+              }
+              return currentActiveCell;
+            });
+            setStatus("Execução concluída.");
+            setExecutingCellIndex(null); // Desliga o loader
+            break;
+            
+          case 'filesystem_update':
+            console.log("Atualizando lista de arquivos do workspace...");
+            fetchFiles();
+            break;
+          
+          case 'resource_stats':
+            setResourceStats(prev => ({ ...prev, ram: data.content, cpu: data.content }));
+            break;
+            
+          case 'disk_stats':
+            setResourceStats(prev => ({ ...prev, disk: data.content }));
+            break;
+            
+          default:
+            console.warn("Mensagem WS desconhecida:", data);
+            setExecutingCellIndex(null); 
+        }
+      };
+      
+      // 6. Salva o novo socket no estado
+      setSocket(newSocket);
+
     } else {
       // Não há token. Redireciona para o login.
       navigate('/login');
@@ -503,110 +681,25 @@ function App() {
     
     // Função de limpeza
     return () => {
-      if (websocket.current) {
-        websocket.current.close();
+      if (socket) {
+        socket.close();
       }
     }
-  }, [token]); // Roda sempre que o 'token' mudar
-
-  // Lógica do WebSocket movida para uma função
-  const connectWebSocket = () => {
-    if (websocket.current && websocket.current.readyState === WebSocket.OPEN) {
-      return; // Já está conectado
-    }
-    
-    // Passa o token como parâmetro de query
-    const newWsUrl = `${WS_URL}?token=${encodeURIComponent(token)}`;
-    console.log("Tentando conectar ao WebSocket...");
-    websocket.current = new WebSocket(newWsUrl);
-    
-    websocket.current.onopen = () => {
-      console.log("WebSocket conectado!");
-      setStatus("Conectado ao Kernel.");
-      setHasError(false);
-    };
-
-    websocket.current.onerror = (error) => {
-      console.error("Erro no WebSocket:", error);
-      setStatus("Erro de conexão com o Kernel.");
-      setHasError(true);
-    };
-
-    websocket.current.onclose = (event) => {
-      console.log("WebSocket desconectado.", event.code);
-      // Se o token for inválido, o backend fecha com 1008
-      if (event.code === 1008) { 
-        setStatus("Sessão expirada. Faça login novamente.");
-        handleLogout(); // Força o logout
-      } else {
-        setStatus("Desconectado do Kernel.");
-        setHasError(true);
-      }
-    };
-  }  
-
-  // Efeito de Salvamento Automático (Autosave)
-  useEffect(() => {
-    if (!websocket.current) return; // Não faz nada se o WS não estiver pronto
-
-    // Define o que fazer quando uma mensagem (saída) chega
-    websocket.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log("Recebido do WS:", data);
-
-      // Lida com os diferentes tipos de mensagem
-      switch(data.type) {
-        case 'stdout':
-        case 'stderr':
-        case 'status':
-          // Mensagem de Saída de Célula
-          if (activeCellIndex !== null) {
-            setCellOutput(activeCellIndex, data);
-          }
-
-          setStatus("Execução concluída.");
-          
-          // ATUALIZADO: Desliga o loader ao receber a saída
-          if (data.type !== 'status') { // Não desliga se for só "Executando..."
-             setExecutingCellIndex(null);
-          }
-          break;
-          
-        case 'filesystem_update':
-          console.log("Atualizando lista de arquivos do workspace...");
-          fetchFiles();
-          
-          // ATUALIZADO: Desliga o loader ao receber a 2a mensagem
-          setExecutingCellIndex(null); 
-          break;
-          
-        default:
-          console.warn("Mensagem WS desconhecida:", data);
-          // ATUALIZADO: Desliga o loader em caso de msg desconhecida
-          setExecutingCellIndex(null);
-      }
-    }
-
-  }, [token, activeCellIndex]);
+  }, [token, navigate]);
 
   // Esta é a lógica de autosave
   useEffect(() => {
-    // Se não estiver "sujo" (dirty) ou não houver notebook, não faz nada
     if (!isDirty || !currentNotebook || !content) {
       return;
     }
-
     if (autosaveTimer.current) {
       clearTimeout(autosaveTimer.current);
     }
-
     setStatus('Alterações não salvas...');
     setHasError(false);
-    
     autosaveTimer.current = setTimeout(() => {
-      saveNotebook(); // Salva o notebook
-    }, 2000); // Delay de 2 segundos
-
+      saveNotebook();
+    }, 2000); 
     return () => {
       if (autosaveTimer.current) {
         clearTimeout(autosaveTimer.current);
@@ -617,156 +710,180 @@ function App() {
   // --- Renderização (JSX) ---
   // O return agora é um ROTEADOR
   return (
-    <Routes>
-      {/* Rota de Login */}
-      <Route 
-        path="/login" 
-        element={<Login onLoginSuccess={handleLoginSuccess} />} 
-      />
-      
-      {/* Rota Principal (Protegida) */}
-      <Route 
-        path="/" 
-        element={
-          token ? (
-            <div className="App">
-      
-              <nav className="Sidebar">
-                <h2>Meus Notebooks</h2>
-                <ul className="Sidebar-list">
-                  {notebooks.map((nb) => (
-                    <li
-                      key={nb.filename}
-                      className={`Sidebar-item ${nb.filename === currentNotebook ? 'active' : ''}`}
-                      onClick={() => openNotebook(nb.filename)}
-                    >
-                      <span className="Sidebar-item-name">{nb.filename}</span>
-                      <button 
-                        className="Sidebar-delete-btn"
-                        onClick={(e) => handleDeleteNotebook(e, nb.filename)}
+    // ATUALIZADO: Adiciona o Fragmento (<>) como elemento pai
+    <>
+      <Routes>
+        {/* Rota de Login */}
+        <Route 
+          path="/login" 
+          element={<Login onLoginSuccess={handleLoginSuccess} />} 
+        />
+        
+        {/* Rota Principal (Protegida) */}
+        <Route 
+          path="/" 
+          element={
+            token ? (
+              <div className="App">
+                {/* ... (Todo o seu JSX da <nav className="Sidebar"> ... ) ... */}
+                {/* ... (Todo o seu JSX da <main className="MainContent"> ... ) ... */}
+                
+                {/* O JSX completo do App.jsx que você colou anteriormente está correto */}
+                {/* Apenas cole o código que você já tem aqui dentro */}
+
+                <nav className="Sidebar">
+                  <h2>Meus Notebooks</h2>
+                  <ul className="Sidebar-list">
+                    {notebooks.map((nb) => (
+                      <li
+                        key={nb.filename}
+                        className={`Sidebar-item ${nb.filename === currentNotebook ? 'active' : ''}`}
+                        onClick={() => openNotebook(nb.filename)}
                       >
-                        &times; 
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <button className="Sidebar-button" onClick={newNotebook}>
-                  + Novo Notebook
-                </button>
-                <div className="Sidebar-divider"></div>
-                <h3>Workspace</h3>
-                <ul className="Workspace-list">
-                  {files.length === 0 && (
-                    <li className="Workspace-item"><i>Nenhum arquivo</i></li>
-                  )}
-                  {files.map((file) => (
-                    <li key={file.filename} className="Workspace-item">
-                      <span className="Workspace-item-name">{file.filename}</span>
-                      <div className="Workspace-item-actions">
-                        <span className="Workspace-item-size">{file.size_kb} KB</span>
+                        <span className="Sidebar-item-name">{nb.filename}</span>
                         <button 
-                          className="Workspace-download-btn"
-                          title={`Baixar ${file.filename}`}
-                          onClick={() => handleDownloadFile(file.filename)}
+                          className="Sidebar-delete-btn"
+                          onClick={(e) => handleDeleteNotebook(e, nb.filename)}
                         >
-                          {/* Ícone de Download (Unicode) */}
-                          &#x21E9;
+                          &times; 
                         </button>
-                        <button 
-                          className="Workspace-delete-btn"
-                          title={`Excluir ${file.filename}`}
-                          onClick={() => handleDeleteFile(file.filename)}
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-
-                {/* Input de upload escondido */}
-                <input 
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleUploadFile}
-                  style={{ display: 'none' }} 
-                />
-                {/* Botão de upload visível */}
-                <button className="Sidebar-upload-btn" onClick={triggerFileInput}>
-                  Fazer Upload
-                </button>
-                {/* Botão de Logout */}
-                <div className="Sidebar-divider"></div>
-                <button 
-                  className="Sidebar-button" 
-                  onClick={handleLogout}
-                  style={{backgroundColor: 'var(--color-error)'}} // Deixa vermelho
-                >
-                  Sair (Logout)
-                </button>      
-              </nav>
-
-              <main className="MainContent">
-                <div className="EditorHeader">
-                  <h1 onClick={handleRenameNotebook} title="Clique para renomear">
-                    {currentNotebook || 'Nenhum notebook aberto'}
-                  </h1>          
-                  <div>
-                    <span className={`EditorStatus ${hasError ? 'error' : ''}`}>
-                      {status}
-                    </span>
-                    
-                    {currentNotebook && (
-                      <button 
-                        className="EditorButton" 
-                        onClick={saveNotebook}
-                        disabled={!isDirty} 
-                      >
-                        Salvar Agora
-                      </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <button className="Sidebar-button" onClick={newNotebook}>
+                    + Novo Notebook
+                  </button>
+                  
+                  <div className="Sidebar-divider"></div>
+                  <h3>Workspace</h3>
+                  <ul className="Workspace-list">
+                    {files.length === 0 && (
+                      <li className="Workspace-item"><i>Nenhum arquivo</i></li>
                     )}
-                  </div>
-                </div>
-
-                {currentNotebook && (
-                      <button 
-                        className="Editor-download-btn" 
-                        title={`Baixar ${currentNotebook}`}
-                        onClick={handleDownloadNotebook}
-                      >
-                        Baixar
-                      </button>
-                    )}
-
-                {currentNotebook && (
-                  <div className="Cell-add-bar">
-                    <button className="Cell-add-btn" onClick={() => handleAddCell('code')}>
-                      + Código
-                    </button>
-                    <button className="Cell-add-btn" onClick={() => handleAddCell('markdown')}>
-                      + Texto
-                    </button>
-                  </div>
-                )}
-
-                <div className="NotebookContainer">
-                  <Notebook
-                    notebook={content}
-                    activeCellIndex={activeCellIndex}
-                    executingCellIndex={executingCellIndex}
-                    onCellChange={handleCellChange}
-                    onCellFocus={handleCellFocus}
-                    onRunCell={handleRunCell}
-                    onDeleteCell={handleDeleteCell} 
-                    onMoveCell={handleMoveCell}
+                    {files.map((file) => (
+                      <li key={file.filename} className="Workspace-item">
+                        <span className="Workspace-item-name">{file.filename}</span>
+                        <div className="Workspace-item-actions">
+                          <span className="Workspace-item-size">{file.size_kb} KB</span>
+                          <button 
+                            className="Workspace-download-btn"
+                            title={`Baixar ${file.filename}`}
+                            onClick={() => handleDownloadFile(file.filename)}
+                          >
+                            &#x21E9;
+                          </button>
+                          <button 
+                            className="Workspace-delete-btn"
+                            title={`Excluir ${file.filename}`}
+                            onClick={() => handleDeleteFile(file.filename)}
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  
+                  <input 
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleUploadFile}
+                    style={{ display: 'none' }} 
                   />
-                </div>
-              </main>
-            </div>
-          ) : null
-        }
-      />
-    </Routes>
+                  <button className="Sidebar-upload-btn" onClick={triggerFileInput}>
+                    Fazer Upload
+                  </button>
+                  
+                  <div className="Sidebar-divider"></div>
+                  <button 
+                    className="Sidebar-button" 
+                    onClick={handleLogout}
+                    style={{backgroundColor: 'var(--color-error)'}}
+                  >
+                    Sair (Logout)
+                  </button>
+                </nav>
+
+                <main className="MainContent">
+                  <div className="EditorHeader">
+                    <h1 onClick={handleRenameNotebook} title="Clique para renomear">
+                      {currentNotebook || 'Nenhum notebook aberto'}
+                    </h1>
+                    <ResourceMonitor stats={resourceStats} />
+                    <div>
+                      <span className={`EditorStatus ${hasError ? 'error': ''}`}>
+                        {status}
+                      </span>
+                      {currentNotebook && (
+                        <button 
+                          className="EditorButton" 
+                          onClick={saveNotebook}
+                          disabled={!isDirty} 
+                        >
+                          Salvar Agora
+                        </button>
+                      )}
+                      {currentNotebook && (
+                        <button 
+                          className="Editor-download-btn" 
+                          title={`Baixar ${currentNotebook}`}
+                          onClick={handleDownloadNotebook}
+                        >
+                          Baixar
+                        </button>
+                      )}
+                      {/* Botão Reiniciar Kernel (Sprint 15) */}
+                      {currentNotebook && (
+                        <button 
+                          className="Editor-restart-btn" 
+                          title="Reiniciar Kernel"
+                          onClick={handleRestartKernel}
+                        >
+                          Reiniciar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {currentNotebook && (
+                    <div className="Cell-add-bar">
+                      <button className="Cell-add-btn" onClick={() => handleAddCell('code')}>
+                        + Código
+                      </button>
+                      <button className="Cell-add-btn" onClick={() => handleAddCell('markdown')}>
+                        + Texto
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="NotebookContainer">
+                    <Notebook
+                      notebook={content}
+                      activeCellIndex={activeCellIndex}
+                      executingCellIndex={executingCellIndex} 
+                      onCellChange={handleCellChange}
+                      onCellFocus={handleCellFocus}
+                      onRunCell={handleRunCell}
+                      onDeleteCell={handleDeleteCell} 
+                      onMoveCell={handleMoveCell}
+                    />
+                  </div>
+                </main>
+              </div>
+            ) : null
+          }
+        />
+      </Routes>
+      
+      {/* Botão "Parar" Flutuante */}
+      <button 
+        className={`StopButton ${executingCellIndex !== null ? 'visible' : ''}`}
+        onClick={handleStopExecution}
+      >
+        Parar
+      </button>      
+    
+    </>
   )
 }
 
