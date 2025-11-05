@@ -832,7 +832,7 @@ function App() {
                           Baixar
                         </button>
                       )}
-                      {/* Botão Reiniciar Kernel (Sprint 15) */}
+                      {/* Botão Reiniciar Kernel (Sprint 15) 
                       {currentNotebook && (
                         <button 
                           className="Editor-restart-btn" 
@@ -841,7 +841,7 @@ function App() {
                         >
                           Reiniciar
                         </button>
-                      )}
+                      )}*/}
                     </div>
                   </div>
 
