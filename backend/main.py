@@ -504,7 +504,7 @@ async def websocket_execute(
                 "image": "python:3.11-slim",
                 "command": ["sleep", "infinity"], 
                 "detach": True, 
-                "mem_limit": "8g", # Limite de 8GB de RAM
+                "mem_limit": "12g", # Limite de 8GB de RAM
                 "volumes": volumes_to_mount,
                 "working_dir": working_dir_path,
                 "auto_remove": True,
